@@ -1,14 +1,11 @@
 from typing import Tuple, TypeVar, Any
 
-import numpy as np
 from numba import prange
 from numba import njit as _njit
 
 from .autodiff import Context
 from .tensor import Tensor
 from .tensor_data import (
-    MAX_DIMS,
-    Index,
     Shape,
     Strides,
     Storage,
@@ -22,6 +19,7 @@ Fn = TypeVar("Fn")
 
 
 def njit(fn: Fn, **kwargs: Any) -> Fn:
+    """Convert function to njit."""
     return _njit(inline="always", **kwargs)(fn)  # type: ignore
 
 
@@ -90,8 +88,44 @@ def _tensor_conv1d(
     s1 = input_strides
     s2 = weight_strides
 
+    # Parallelize over the flattened output space
+    for idx in prange(out_size):
+        # Compute the multi-dimensional indices (b, oc, w) from the flattened idx
+        b = idx // (out_channels * out_width)
+        oc = (idx // out_width) % out_channels
+        w = idx % out_width
+
+        value = 0.0
+        for ic in range(in_channels):  # Sum over input channels
+            for k in range(kw):  # Convolve with kernel
+                # Adjust index based on reverse
+                if reverse:
+                    input_pos = w - k
+                else:
+                    input_pos = w + k
+
+                # Ensure valid index
+                if 0 <= input_pos < width:
+                    # Calculate storage offsets using strides and s1 (input_strides)
+                    input_offset = (
+                        b * s1[0]  # Batch offset
+                        + ic * s1[1]  # Input channel offset
+                        + input_pos * s1[2]  # Width offset for input
+                    )
+                    # Calculate weight offset using s2 (weight_strides)
+                    weight_offset = (
+                        oc * s2[0]  # Output channel offset
+                        + ic * s2[1]  # Input channel offset for weight
+                        + k * s2[2]  # Kernel width offset
+                    )
+                    value += input[input_offset] * weight[weight_offset]
+
+        # Compute output offset and assign value
+        out_offset = b * out_strides[0] + oc * out_strides[1] + w * out_strides[2]
+        out[out_offset] = value
+
     # TODO: Implement for Task 4.1.
-    raise NotImplementedError("Need to implement for Task 4.1")
+    # raise NotImplementedError("Need to implement for Task 4.1")
 
 
 tensor_conv1d = njit(_tensor_conv1d, parallel=True)
@@ -127,6 +161,7 @@ class Conv1dFun(Function):
 
     @staticmethod
     def backward(ctx: Context, grad_output: Tensor) -> Tuple[Tensor, Tensor]:
+        """Backward pass of Conv1dFun."""
         input, weight = ctx.saved_values
         batch, in_channels, w = input.shape
         out_channels, in_channels, kw = weight.shape
@@ -203,9 +238,10 @@ def _tensor_conv2d(
         reverse (bool): anchor weight at top-left or bottom-right
 
     """
+    """
     batch_, out_channels, _, _ = out_shape
-    batch, in_channels, height, width = input_shape
-    out_channels_, in_channels_, kh, kw = weight_shape
+    batch, in_channels, in_height, in_width = input_shape
+    out_channels_, in_channels_, kernel_height, kernel_width = weight_shape
 
     assert (
         batch == batch_
@@ -218,9 +254,73 @@ def _tensor_conv2d(
     # inners
     s10, s11, s12, s13 = s1[0], s1[1], s1[2], s1[3]
     s20, s21, s22, s23 = s2[0], s2[1], s2[2], s2[3]
+    """
+    batch_, out_channels, out_height, out_width = out_shape
+    batch, in_channels, in_height, in_width = input_shape
+    out_channels_, in_channels_, kernel_height, kernel_width = weight_shape
+
+    assert (
+        batch == batch_
+        and in_channels == in_channels_
+        and out_channels == out_channels_
+    )
+
+    s1 = input_strides
+    s2 = weight_strides
+
+    # inners
+    s10, s11, s12, s13 = s1[0], s1[1], s1[2], s1[3]
+    s20, s21, s22, s23 = s2[0], s2[1], s2[2], s2[3]
+
+    # Parallelize over the flattened output space
+    for idx in prange(out_size):
+        # Compute the multi-dimensional indices (b, oc, h, w) from the flattened idx
+        b = idx // (out_channels * out_height * out_width)
+        oc = (idx // (out_height * out_width)) % out_channels
+        h = (idx // out_width) % out_height
+        w = idx % out_width
+
+        value = 0.0
+        for ic in range(in_channels):  # Sum over input channels
+            for kh in range(kernel_height):  # Convolve with kernel height
+                for kw in range(kernel_width):  # Convolve with kernel width
+                    # Adjust indices based on reverse
+                    if reverse:
+                        input_pos_h = h - kh
+                        input_pos_w = w - kw
+                    else:
+                        input_pos_h = h + kh
+                        input_pos_w = w + kw
+
+                    # Ensure valid index
+                    if 0 <= input_pos_h < in_height and 0 <= input_pos_w < in_width:
+                        # Calculate storage offsets using strides
+                        input_offset = (
+                            b * s10  # Batch offset
+                            + ic * s11  # Input channel offset
+                            + input_pos_h * s12  # Height offset for input
+                            + input_pos_w * s13  # Width offset for input
+                        )
+                        # Calculate weight offset using s2 (weight_strides)
+                        weight_offset = (
+                            oc * s20  # Output channel offset
+                            + ic * s21  # Input channel offset for weight
+                            + kh * s22  # Kernel height offset
+                            + kw * s23  # Kernel width offset
+                        )
+                        value += input[input_offset] * weight[weight_offset]
+
+        # Compute output offset and assign value
+        out_offset = (
+            b * out_strides[0]
+            + oc * out_strides[1]
+            + h * out_strides[2]
+            + w * out_strides[3]
+        )
+        out[out_offset] = value
 
     # TODO: Implement for Task 4.2.
-    raise NotImplementedError("Need to implement for Task 4.2")
+    # raise NotImplementedError("Need to implement for Task 4.2")
 
 
 tensor_conv2d = njit(_tensor_conv2d, parallel=True, fastmath=True)
@@ -254,6 +354,7 @@ class Conv2dFun(Function):
 
     @staticmethod
     def backward(ctx: Context, grad_output: Tensor) -> Tuple[Tensor, Tensor]:
+        """Backward pass of Conv2dFun."""
         input, weight = ctx.saved_values
         batch, in_channels, h, w = input.shape
         out_channels, in_channels, kh, kw = weight.shape
