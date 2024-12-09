@@ -1,14 +1,11 @@
 from typing import Tuple, TypeVar, Any
 
-import numpy as np
 from numba import prange
 from numba import njit as _njit
 
 from .autodiff import Context
 from .tensor import Tensor
 from .tensor_data import (
-    MAX_DIMS,
-    Index,
     Shape,
     Strides,
     Storage,
@@ -22,6 +19,7 @@ Fn = TypeVar("Fn")
 
 
 def njit(fn: Fn, **kwargs: Any) -> Fn:
+    """Convert function to njit."""
     return _njit(inline="always", **kwargs)(fn)  # type: ignore
 
 
@@ -123,14 +121,11 @@ def _tensor_conv1d(
                     value += input[input_offset] * weight[weight_offset]
 
         # Compute output offset and assign value
-        out_offset = (
-            b * out_strides[0] + oc * out_strides[1] + w * out_strides[2]
-        )
+        out_offset = b * out_strides[0] + oc * out_strides[1] + w * out_strides[2]
         out[out_offset] = value
 
-
     # TODO: Implement for Task 4.1.
-    #raise NotImplementedError("Need to implement for Task 4.1")
+    # raise NotImplementedError("Need to implement for Task 4.1")
 
 
 tensor_conv1d = njit(_tensor_conv1d, parallel=True)
@@ -166,6 +161,7 @@ class Conv1dFun(Function):
 
     @staticmethod
     def backward(ctx: Context, grad_output: Tensor) -> Tuple[Tensor, Tensor]:
+        """Backward pass of Conv1dFun."""
         input, weight = ctx.saved_values
         batch, in_channels, w = input.shape
         out_channels, in_channels, kw = weight.shape
@@ -276,7 +272,6 @@ def _tensor_conv2d(
     s10, s11, s12, s13 = s1[0], s1[1], s1[2], s1[3]
     s20, s21, s22, s23 = s2[0], s2[1], s2[2], s2[3]
 
-    
     # Parallelize over the flattened output space
     for idx in prange(out_size):
         # Compute the multi-dimensional indices (b, oc, h, w) from the flattened idx
@@ -317,13 +312,15 @@ def _tensor_conv2d(
 
         # Compute output offset and assign value
         out_offset = (
-            b * out_strides[0] + oc * out_strides[1] + h * out_strides[2] + w * out_strides[3]
+            b * out_strides[0]
+            + oc * out_strides[1]
+            + h * out_strides[2]
+            + w * out_strides[3]
         )
         out[out_offset] = value
 
-    
     # TODO: Implement for Task 4.2.
-    #raise NotImplementedError("Need to implement for Task 4.2")
+    # raise NotImplementedError("Need to implement for Task 4.2")
 
 
 tensor_conv2d = njit(_tensor_conv2d, parallel=True, fastmath=True)
@@ -357,6 +354,7 @@ class Conv2dFun(Function):
 
     @staticmethod
     def backward(ctx: Context, grad_output: Tensor) -> Tuple[Tensor, Tensor]:
+        """Backward pass of Conv2dFun."""
         input, weight = ctx.saved_values
         batch, in_channels, h, w = input.shape
         out_channels, in_channels, kh, kw = weight.shape

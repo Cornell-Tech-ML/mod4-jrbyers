@@ -325,13 +325,13 @@ def tensor_reduce(
         BLOCK_DIM = 1024  # Number of threads per block
         cache = cuda.shared.array(BLOCK_DIM, numba.float64)  # Shared memory
         out_index = cuda.local.array(MAX_DIMS, numba.int32)  # Local array for indexing
-        out_pos = ( cuda.blockIdx.x)
+        out_pos = cuda.blockIdx.x
         pos = cuda.threadIdx.x  # Index of the current thread within a block
         cache[pos] = reduce_value
 
         if out_pos < out_size:
             to_index(out_pos, out_shape, out_index)
-            o = index_to_position(out_index, out_strides)            
+            o = index_to_position(out_index, out_strides)
             out_index[reduce_dim] = out_index[reduce_dim] * BLOCK_DIM + pos
             if out_index[reduce_dim] < a_shape[reduce_dim]:
                 in_a = index_to_position(out_index, a_strides)
@@ -399,8 +399,9 @@ def _mm_practice(out: Storage, a: Storage, b: Storage, size: int) -> None:
     accum = 0.0
     for k in range(size):
         accum += a_shared[i, k] * b_shared[i, j]
-    
+
     out[size * i + j] = accum
+
 
 jit_mm_practice = jit(_mm_practice)
 
@@ -482,7 +483,6 @@ def _tensor_matrix_multiply(
 
     if i < out_shape[1] and j < out_shape[2]:
         out[out_strides[0] * batch + out_strides[1] * i + out_strides[2] * j] = accum
-
 
 
 tensor_matrix_multiply = jit(_tensor_matrix_multiply)

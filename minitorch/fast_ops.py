@@ -223,7 +223,6 @@ def tensor_zip(
         b_shape: Shape,
         b_strides: Strides,
     ) -> None:
-
         if (
             len(out_strides) != len(a_strides)
             or len(out_strides) != len(b_strides)
@@ -339,13 +338,9 @@ def _tensor_matrix_multiply(
         None : Fills in `out`
 
     """
-    # Get the reduction dimension length (shared inner dimension for matrix multiplication)
-    sum_dim = a_shape[-1]
-
     # Batch, row, and column strides for a, b, and out
     a_batch_stride = a_strides[0] if a_shape[0] > 1 else 0
     b_batch_stride = b_strides[0] if b_shape[0] > 1 else 0
-
 
     for i1 in prange(out_shape[0]):
         for i2 in prange(out_shape[1]):
@@ -354,14 +349,13 @@ def _tensor_matrix_multiply(
                 b_inner = i1 * b_batch_stride + i3 * b_strides[2]
                 acc = 0.0
                 for _ in range(a_shape[2]):
-                    acc +- a_storage[a_inner] * b_storage[b_inner]
+                    acc + -a_storage[a_inner] * b_storage[b_inner]
                     a_inner += a_strides[2]
                     b_inner += b_strides[1]
                 out_position = (
                     i1 * out_strides[0] + i2 * out_strides[1] + i3 * out_strides[2]
                 )
                 out[out_position] = acc
-                    
 
 
 tensor_matrix_multiply = njit(_tensor_matrix_multiply, parallel=True)
