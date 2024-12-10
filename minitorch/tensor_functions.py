@@ -215,20 +215,32 @@ class Sum(Function):
         return grad_output, 0.0  # this is all ones times the grad_output
     
 class Max(Function):
-    """Calculates the max function."""
+   """Calculates the max function."""
 
-    @staticmethod
-    def forward(ctx: Context, t1: Tensor, dim: Tensor) -> Tensor:
-        """Forward pass max function"""
-        ctx.save_for_backward(t1)
-        return t1.f.relu_map(t1)  # Use ReLU map since max(x,0) = ReLU(x)
+   @staticmethod
+   def forward(ctx: Context, t1: Tensor, dim: Tensor) -> Tensor:
+       """Forward pass max function"""
+       # Compute max values
+       max_values = t1.f.max_reduce(t1, int(dim.item()))
+       
+       # Create and compute mask for values equal to max
+       mask = t1.f.eq_zip(t1, max_values.expand(t1))
+       
+       # Save mask and input shape for backward pass
+       ctx.save_for_backward(mask, t1.shape)
+       
+       return max_values
 
-
-    @staticmethod
-    def backward(ctx: Context, grad_output: Tensor) -> tuple[Tensor, float]:
-        """Backward pass for max function."""
-        input, = ctx.saved_values
-        return grad_output.f.relu_back_zip(input, grad_output)
+   @staticmethod
+   def backward(ctx: Context, grad_output: Tensor) -> tuple[Tensor, float]:
+       """Backward pass for max function."""
+       # Retrieve saved mask and shape
+       mask, input_shape = ctx.saved_values
+       
+       # Use saved mask to distribute gradients
+       grad_input = grad_output.expand(mask) * mask
+       
+       return grad_input, 0.0
 
 
 class LT(Function):

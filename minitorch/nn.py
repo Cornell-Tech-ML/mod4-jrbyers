@@ -35,53 +35,78 @@ def tile(input: Tensor, kernel: Tuple[int, int]) -> Tuple[Tensor, int, int]:
     assert width % kw == 0
     # TODO: Implement for Task 4.3.
     # raise NotImplementedError("Need to implement for Task 4.3")
-
-    # Calculate the new height and width after pooling
+    # Calculate new dimensions
     new_height = height // kh
     new_width = width // kw
-
-    # Reshape the input tensor to facilitate pooling
-    # The shape we want: batch x channel x new_height x new_width x (kernel_height * kernel_width)
-
-    # Step 1: View the tensor to extract sliding blocks
-    # First, we will reshape the height and width dimensions so that each block of size (kh, kw) becomes a new axis.
+    
+    # Create a view of the input tensor with shape:
+    # (batch, channel, new_height, kh, new_width, kw)
     reshaped = input.contiguous().view(batch, channel, new_height, kh, new_width, kw)
+    
+    # Permute the dimensions to get:
+    # (batch, channel, new_height, new_width, kh * kw)
+    output = reshaped.permute(0, 1, 2, 4, 3, 5)
+    final_shape = (batch, channel, new_height, new_width, kh * kw)
+    output = output.contiguous().view(*final_shape)
 
-    # Step 2: Permute the new axes so that the kernel elements are the last dimension
-    reshaped = reshaped.permute(
-        0, 1, 2, 4, 3, 5
-    )  # Move the kernel dimensions to the end
+    return output, new_height, new_width
 
-    # Step 3: Reshape the tensor to have the last dimension as the flattened kernel (kh * kw)
-    reshaped = reshaped.contiguous().view(
-        batch, channel, new_height, new_width, kh * kw
-    )
-
-    # Return the reshaped tensor along with the new height and width
-    return reshaped, new_height, new_width
-
+    
 
 def avgpool2d(input: Tensor, kernel: Tuple[int, int]) -> Tensor:
-    """Tiled average pooling 2D
-
+    """Tiled average pooling 2D.
+    
     Args:
     ----
-        input: batch x channel x height x width
-        kernel: height x width of pooling
-
+        input: Tensor of shape (batch, channel, height, width)
+        kernel: Tuple of (kernel_height, kernel_width)
+    
     Returns:
     -------
-        Tensor of size batch x channel x new_height x new_width after performing average pooling.
-
+        Tensor of shape (batch, channel, height/kernel_height, width/kernel_width)
     """
-    # Use tile to reshape the input tensor for pooling
-    reshaped, new_height, new_width = tile(input, kernel)
-    pooled = reshaped.mean(dim=4)  # Average along the kernel dimension (last dimension)
+    batch, channel, height, width = input.shape
+    kh, kw = kernel
+    
+    # Check if dimensions are compatible
+    assert height % kh == 0
+    assert width % kw == 0
+    
+    # Use tile to reshape the input tensor
+    tiled, new_height, new_width = tile(input, kernel)
+    
+    # Calculate the average by summing and dividing by kernel size
+    kernel_size = kh * kw
+    output = tiled.sum(4) / kernel_size  # Using explicit dimension 4 instead of -1
+    
+    return output.view(batch, channel, new_height, new_width)
 
-    # remove last singleton dimension
-    pooled = pooled.view(input.shape[0], input.shape[1], new_height, new_width)
-    return pooled
-
+def maxpool2d(input: Tensor, kernel: Tuple[int, int]) -> Tensor:
+    """Tiled max pooling 2D.
+    
+    Args:
+    ----
+        input: Tensor of shape (batch, channel, height, width)
+        kernel: Tuple of (kernel_height, kernel_width)
+    
+    Returns:
+    -------
+        Tensor of shape (batch, channel, height/kernel_height, width/kernel_width)
+    """
+    batch, channel, height, width = input.shape
+    kh, kw = kernel
+    
+    # Check if dimensions are compatible
+    assert height % kh == 0
+    assert width % kw == 0
+    
+    # Use tile to reshape the input tensor
+    tiled, new_height, new_width = tile(input, kernel)
+    
+    # Calculate the max over the kernel dimension (dim 4)
+    output = tiled.max(4)
+    
+    return output.view(batch, channel, new_height, new_width)
 
 
 def max_func(input: Tensor, kernel: int) -> Tensor:
@@ -145,45 +170,26 @@ def logsoftmax(input: Tensor, dim: int = -1) -> Tensor:
     # Handle negative dimension index
     if dim < 0:
         dim = input.dims + dim
-    
+
     # Step 1: Get the maximum value along the dimension for numerical stability
     max_vals = input.max(dim)
-    
+
     # Step 2: Subtract the max for numerical stability
     shifted_input = input - max_vals.expand(input)
-    
+
     # Step 3: Compute the exponential of the shifted values
     exp_vals = shifted_input.exp()
-    
+
     # Step 4: Sum the exponential values along the dimension
     sum_exp = exp_vals.sum(dim)
-    
+
     # Step 5: Take the log of the sum
     log_sum = sum_exp.log()
-    
+
     # Step 6: Compute final result: x - max(x) - log(sum(exp(x - max(x))))
     return shifted_input - log_sum.expand(input)
 
-def maxpool2d(input: Tensor, kernel: Tuple[int, int]) -> Tensor:
-    """Tiled max pooling 2D
-    
-    Args:
-    ----
-        input: batch x channel x height x width
-        kernel: height x width of pooling
-    
-    Returns:
-    -------
-        Tensor of size batch x channel x new_height x new_width after performing max pooling.
-    """
-    # Use tile to reshape the input tensor for pooling
-    reshaped, new_height, new_width = tile(input, kernel)
-    
-    # Apply max reduction along the kernel dimension (last dimension)
-    pooled = reshaped.max(dim=4)
-    
-    # Remove last singleton dimension and reshape to correct output shape
-    return pooled.contiguous().view(input.shape[0], input.shape[1], new_height, new_width)
+
 
 def dropout(input: Tensor, rate: float = 0.5, ignore: bool = False) -> Tensor:
     """Randomly drop units from the input tensor with probability `rate` during training.
