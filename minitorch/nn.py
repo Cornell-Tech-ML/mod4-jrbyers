@@ -1,7 +1,6 @@
 from typing import Tuple
 
 from .tensor import Tensor
-import random
 import numpy as np
 
 
@@ -38,11 +37,11 @@ def tile(input: Tensor, kernel: Tuple[int, int]) -> Tuple[Tensor, int, int]:
     # Calculate new dimensions
     new_height = height // kh
     new_width = width // kw
-    
+
     # Create a view of the input tensor with shape:
     # (batch, channel, new_height, kh, new_width, kw)
     reshaped = input.contiguous().view(batch, channel, new_height, kh, new_width, kw)
-    
+
     # Permute the dimensions to get:
     # (batch, channel, new_height, new_width, kh * kw)
     output = reshaped.permute(0, 1, 2, 4, 3, 5)
@@ -51,68 +50,69 @@ def tile(input: Tensor, kernel: Tuple[int, int]) -> Tuple[Tensor, int, int]:
 
     return output, new_height, new_width
 
-    
 
 def avgpool2d(input: Tensor, kernel: Tuple[int, int]) -> Tensor:
     """Tiled average pooling 2D.
-    
+
     Args:
     ----
         input: Tensor of shape (batch, channel, height, width)
         kernel: Tuple of (kernel_height, kernel_width)
-    
+
     Returns:
     -------
         Tensor of shape (batch, channel, height/kernel_height, width/kernel_width)
+
     """
     batch, channel, height, width = input.shape
     kh, kw = kernel
-    
+
     # Check if dimensions are compatible
     assert height % kh == 0
     assert width % kw == 0
-    
+
     # Use tile to reshape the input tensor
     tiled, new_height, new_width = tile(input, kernel)
-    
+
     # Calculate the average by summing and dividing by kernel size
     kernel_size = kh * kw
     output = tiled.sum(4) / kernel_size  # Using explicit dimension 4 instead of -1
-    
+
     return output.view(batch, channel, new_height, new_width)
+
 
 def maxpool2d(input: Tensor, kernel: Tuple[int, int]) -> Tensor:
     """Tiled max pooling 2D.
-    
+
     Args:
     ----
         input: Tensor of shape (batch, channel, height, width)
         kernel: Tuple of (kernel_height, kernel_width)
-    
+
     Returns:
     -------
         Tensor of shape (batch, channel, height/kernel_height, width/kernel_width)
+
     """
     batch, channel, height, width = input.shape
     kh, kw = kernel
-    
+
     # Check if dimensions are compatible
     assert height % kh == 0
     assert width % kw == 0
-    
+
     # Use tile to reshape the input tensor
     tiled, new_height, new_width = tile(input, kernel)
-    
+
     # Calculate the max over the kernel dimension (dim 4)
     output = tiled.max(4)
-    
+
     return output.view(batch, channel, new_height, new_width)
 
 
 def max_func(input: Tensor, kernel: int) -> Tensor:
-   """Run the max function which is implemented in tensor.py"""
-   return input.max(kernel)
-
+    """Run the max function which is implemented in tensor.py"""
+    return input.max(kernel)
 
 
 def softmax(input: Tensor, dim: int = -1) -> Tensor:
@@ -131,37 +131,38 @@ def softmax(input: Tensor, dim: int = -1) -> Tensor:
     # Handle negative dimension index
     if dim < 0:
         dim = input.dims + dim
-    
+
     # Step 1: Get the maximum value along the dimension for numerical stability
     max_vals = input.max(dim)
-    
+
     # Step 2: Subtract the max for numerical stability
-    shifted_input = input - max_vals.expand(input)
-    
+    shifted_input = input - max_vals
+
     # Step 3: Compute the exponential
     exp_vals = shifted_input.exp()
-    
+
     # Step 4: Sum the exponential values along the dimension
     sum_exp_vals = exp_vals.sum(dim)
-    
+
     # Step 5: Normalize the exponentials to produce softmax probabilities
-    softmax_output = exp_vals / sum_exp_vals.expand(exp_vals)
-    
+    softmax_output = exp_vals / sum_exp_vals
+
     return softmax_output
+
 
 def logsoftmax(input: Tensor, dim: int = -1) -> Tensor:
     """Compute the log of the softmax as a tensor.
-    
+
     Uses the log-sum-exp trick for numerical stability:
     log(softmax(x)) = log(exp(x)/sum(exp(x)))
                     = x - log(sum(exp(x)))
                     = x - max(x) - log(sum(exp(x - max(x))))
-    
+
     Args:
     ----
         input: Tensor of arbitrary shape
         dim: The dimension along which to compute the logsoftmax (default: -1, last dimension)
-    
+
     Returns:
     -------
         Tensor of same shape as input containing log probabilities
@@ -175,7 +176,7 @@ def logsoftmax(input: Tensor, dim: int = -1) -> Tensor:
     max_vals = input.max(dim)
 
     # Step 2: Subtract the max for numerical stability
-    shifted_input = input - max_vals.expand(input)
+    shifted_input = input - max_vals
 
     # Step 3: Compute the exponential of the shifted values
     exp_vals = shifted_input.exp()
@@ -183,26 +184,25 @@ def logsoftmax(input: Tensor, dim: int = -1) -> Tensor:
     # Step 4: Sum the exponential values along the dimension
     sum_exp = exp_vals.sum(dim)
 
-    # Step 5: Take the log of the sum
-    log_sum = sum_exp.log()
+    log_sum = sum_exp.log()  # take log of the sum
+    final_result = shifted_input - log_sum
 
-    # Step 6: Compute final result: x - max(x) - log(sum(exp(x - max(x))))
-    return shifted_input - log_sum.expand(input)
-
+    return final_result
 
 
 def dropout(input: Tensor, rate: float = 0.5, ignore: bool = False) -> Tensor:
     """Randomly drop units from the input tensor with probability `rate` during training.
-    
+
     Args:
     ----
         input: Tensor of any shape
         rate: Probability of dropping a unit (setting it to 0), between 0 and 1
         ignore: If True, dropout is disabled and the input is returned as-is
-    
+
     Returns:
     -------
         Tensor of same shape as input with some entries randomly set to 0
+
     """
     print("rate is: " + str(rate))
     print("ignore is: " + str(ignore))
@@ -218,13 +218,15 @@ def dropout(input: Tensor, rate: float = 0.5, ignore: bool = False) -> Tensor:
 
     # Create random mask using numpy for better efficiency
     prob = 1.0 - rate  # probability of keeping a unit
-    mask_array = (np.random.random(len(input._tensor._storage)) < prob).astype(np.float64)
-    
+    mask_array = (np.random.random(len(input._tensor._storage)) < prob).astype(
+        np.float64
+    )
+
     # Convert numpy array to tensor
     mask = input.zeros(input.shape)
     mask._tensor._storage[:] = mask_array
 
     # Scale up values by 1/(1-rate) to maintain expected sum during training
     scale = 1.0 / prob
-    
+
     return input * mask * scale

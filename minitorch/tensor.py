@@ -382,14 +382,13 @@ class Tensor:
             return self.sum(dim) / self.shape[dim]
         else:
             return self.sum() / self.size
-        
+
     def max(self, dim: Optional[int] = None) -> Tensor:
         """Max of the tensor along optional axis dim."""
         if dim is None:
             return Max.apply(self.contiguous().view(self.size), self._ensure_tensor(0))
         else:
             return Max.apply(self, self._ensure_tensor(dim))
-        
 
     def permute(self, *shape: int) -> Tensor:
         """Reshape the view of the tensor."""

@@ -213,34 +213,33 @@ class Sum(Function):
         """Backward pass derivative for sum"""
         t1_shape, dim = ctx.saved_values
         return grad_output, 0.0  # this is all ones times the grad_output
-    
+
+
 class Max(Function):
-   """Calculates the max function."""
+    """Calculates the max function."""
 
-   @staticmethod
-   def forward(ctx: Context, t1: Tensor, dim: Tensor) -> Tensor:
-       """Forward pass max function"""
-       # Compute max values
-       max_values = t1.f.max_reduce(t1, int(dim.item()))
-       
-       # Create and compute mask for values equal to max
-       mask = t1.f.eq_zip(t1, max_values.expand(t1))
-       
-       # Save mask and input shape for backward pass
-       ctx.save_for_backward(mask, t1.shape)
-       
-       return max_values
+    @staticmethod
+    def forward(ctx: Context, t1: Tensor, dim: Tensor) -> Tensor:
+        """Forward pass max function"""
+        dim_int = int(dim.item())
+        max_values = t1.f.max_reduce(t1, dim_int)
 
-   @staticmethod
-   def backward(ctx: Context, grad_output: Tensor) -> tuple[Tensor, float]:
-       """Backward pass for max function."""
-       # Retrieve saved mask and shape
-       mask, input_shape = ctx.saved_values
-       
-       # Use saved mask to distribute gradients
-       grad_input = grad_output.expand(mask) * mask
-       
-       return grad_input, 0.0
+        ctx.save_for_backward(t1, max_values, dim_int)
+
+        return max_values
+
+    @staticmethod
+    def backward(ctx: Context, grad_output: Tensor) -> tuple[Tensor, float]:
+        """Backward pass for max function."""
+        # Retrieve saved mask and shape
+        t1, max_values, dim_int = ctx.saved_values
+
+        # set mask to 1 at all places max_values equals t1
+        mask = t1 == max_values
+
+        grad_output = mask * grad_output
+
+        return grad_output, 0.0
 
 
 class LT(Function):
