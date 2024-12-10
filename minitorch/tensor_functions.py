@@ -213,6 +213,22 @@ class Sum(Function):
         """Backward pass derivative for sum"""
         t1_shape, dim = ctx.saved_values
         return grad_output, 0.0  # this is all ones times the grad_output
+    
+class Max(Function):
+    """Calculates the max function."""
+
+    @staticmethod
+    def forward(ctx: Context, t1: Tensor, dim: Tensor) -> Tensor:
+        """Forward pass max function"""
+        ctx.save_for_backward(t1)
+        return t1.f.relu_map(t1)  # Use ReLU map since max(x,0) = ReLU(x)
+
+
+    @staticmethod
+    def backward(ctx: Context, grad_output: Tensor) -> tuple[Tensor, float]:
+        """Backward pass for max function."""
+        input, = ctx.saved_values
+        return grad_output.f.relu_back_zip(input, grad_output)
 
 
 class LT(Function):

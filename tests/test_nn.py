@@ -11,13 +11,7 @@ from .tensor_strategies import tensors
 @pytest.mark.task4_3
 @given(tensors(shape=(1, 1, 4, 4)))
 def test_avg(t: Tensor) -> None:
-    print()
-    print("new test")
     out = minitorch.avgpool2d(t, (2, 2))
-
-    print("T is shape: " + str(t.shape))
-    print("RUNNING TEST")
-    print("out is shape: " + str(out.shape))
     assert_close(
         out[0, 0, 0, 0], sum([t[0, 0, i, j] for i in range(2) for j in range(2)]) / 4.0
     )
@@ -39,6 +33,7 @@ def test_avg(t: Tensor) -> None:
 def test_max(t: Tensor) -> None:
     # TODO: Implement for Task 4.4.
     raise NotImplementedError("Need to implement for Task 4.4")
+
 
 
 @pytest.mark.task4_4
