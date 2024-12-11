@@ -76,6 +76,7 @@ class CNNSentimentKim(minitorch.Module):
         self.conv3 = Conv1d(embedding_size, feature_map_size, filter_sizes[2])
         
         self.linear = Linear(feature_map_size, 1)
+        self.dummy_linear = Linear(embedding_size, 10)
 
     def forward(self, embeddings):
         """
@@ -84,6 +85,29 @@ class CNNSentimentKim(minitorch.Module):
         
         batch, sent_len, emb_dim = embeddings.shape
         x = embeddings.permute(0, 2, 1)  # Change to shape: [batch_size, embedding_dim, sentence_length]
+
+        batch, sent_len, emb_dim = embeddings.shape
+        x = embeddings.permute(0, 2, 1)  # Change to shape: [batch_size, embedding_dim, sentence_length]
+        print("x shape: " + str(x.shape))
+
+        reduced_x = x.mean(dim=2)  # Shape: [batch, emb_dim]
+        dummy_out = reduced_x.view(batch, emb_dim)
+
+        print("dummy_out shape: " + str(dummy_out.shape))
+        # Pass through the dummy linear layer
+        dummy_out = self.dummy_linear.forward(dummy_out)  # Shape: [batch, 10]
+        #print("dummy_out shape: " + str(dummy_out.shape))
+
+        dummy_out = dummy_out.mean(dim=1)  # Shape: [batch, emb_dim]
+        print("2dummy_out shape: " + str(dummy_out.shape))
+        dummy_out = dummy_out.view(batch)
+        print("last dummy_out shape: " + str(dummy_out.shape))
+
+        return dummy_out
+
+
+
+
         conv_out1 = self.conv1(x)
         conv_out1 = conv_out1.relu()
         pooled1 = conv_out1.max(2)
