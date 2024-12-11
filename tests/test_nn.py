@@ -64,12 +64,13 @@ def test_max(t: Tensor) -> None:
     # and 0.0 elsewhere
     for i in range(2):  # batch
         for j in range(4):  # output dimension
-            max_val = max([t[i, k, j] for k in range(3)])
+            max_val = float(max([t[i, k, j] for k in range(3)]))  # Convert to float
             for k in range(3):  # reduced dimension
-                if t[i, k, j].item() == max_val:
-                    assert_close(t.grad[i, k, j].item(), 1.0)
+                curr_val = float(t[i, k, j])  # Convert to float
+                if curr_val == max_val:
+                    assert_close(float(t.grad[i, k, j]), 1.0)
                 else:
-                    assert_close(t.grad[i, k, j].item(), 0.0)
+                    assert_close(float(t.grad[i, k, j]), 0.0)
 
 
 @pytest.mark.task4_4
