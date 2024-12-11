@@ -60,8 +60,9 @@ def test_max(t: Tensor) -> None:
     d = t.zeros((2, 1, 4)) + 1
     out.backward(d)
 
-    # The gradient should be 1.0 at positions where the max occurred
-    # and 0.0 elsewhere
+    # Check if grad exists
+    assert t.grad is not None, "Gradient should not be None"
+
     for i in range(2):  # batch
         for j in range(4):  # output dimension
             max_val = float(max([t[i, k, j] for k in range(3)]))  # Convert to float
