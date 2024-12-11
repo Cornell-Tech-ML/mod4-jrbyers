@@ -204,8 +204,6 @@ def dropout(input: Tensor, rate: float = 0.5, ignore: bool = False) -> Tensor:
         Tensor of same shape as input with some entries randomly set to 0
 
     """
-    print("rate is: " + str(rate))
-    print("ignore is: " + str(ignore))
     # Early returns
     if ignore:
         return input

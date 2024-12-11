@@ -27,11 +27,18 @@ class Linear(minitorch.Module):
         self.bias = RParam(out_size)
         self.out_size = out_size
 
+    # using the forward pass from run_tensor
+    # the new one had malloc errors
     def forward(self, x):
-        batch, in_size = x.shape
-        return (
-            x.view(batch, in_size) @ self.weights.value.view(in_size, self.out_size)
-        ).view(batch, self.out_size) + self.bias.value
+       # Ensure inputs are in the correct shape
+       assert x.shape[1] == self.weights.value.shape[0], "Input size must match weights size."
+
+
+       batch, in_size = x.shape
+       return (
+           self.weights.value.view(1, in_size, self.out_size)
+           * x.view(batch, in_size, 1)
+       ).sum(1).view(batch, self.out_size) + self.bias.value.view(self.out_size)
 
 
 class Conv2d(minitorch.Module):
@@ -65,18 +72,57 @@ class Network(minitorch.Module):
     def __init__(self):
         super().__init__()
 
-        # For vis
-        self.mid = None
-        self.out = None
-
         # TODO: Implement for Task 4.5.
         #raise NotImplementedError("Need to implement for Task 4.5")
 
+        # First convolutional layer: 1 input channel -> 4 output channels
+        self.conv1 = Conv2d(1, 4, 3, 3)  # 3x3 kernel
+
+        # Second convolutional layer: 4 input channels -> 8 output channels
+        self.conv2 = Conv2d(4, 8, 3, 3)  # 3x3 kernel
+
+        # Linear layers
+        # Size calculation:
+        # Input: 28x28 -> Conv1: 26x26 -> Conv2: 24x24 -> Pool: 6x6
+        # After flattening: 8 * 6 * 6 = 288
+        self.linear1 = Linear(392, 64)
+        self.linear2 = Linear(64, 10)  # 10 classes for MNIST
+
+
+        self.dropout = 0.25
 
 
     def forward(self, x):
         # TODO: Implement for Task 4.5.
         #raise NotImplementedError("Need to implement for Task 4.5")
+        self.mid = self.conv1(x)
+        self.mid = self.mid.relu()
+
+        # 2. Second convolution + ReLU
+        self.out = self.conv2(self.mid)
+        self.out = self.out.relu()
+
+        # 3. Apply 2D pooling (using max pooling with 4x4 kernel)
+        # Assuming we have a max_pool2d function similar to conv2d
+        pooled = minitorch.maxpool2d(self.out, (4, 4))
+
+        # 4. Flatten channels, height, and width
+        # Get the dimensions
+        batch, channels, height, width = pooled.shape
+        flattened = pooled.view(batch, channels * height * width)
+
+        # 5. First linear layer + ReLU + Dropout
+        hidden = self.linear1(flattened)
+        hidden = hidden.relu()
+        # Apply dropout during training (multiply by 1-dropout to scale)
+        hidden = hidden * (1.0 - self.dropout)
+
+        # 6. Second linear layer
+        logits = self.linear2(hidden)
+
+        # 7. Apply logsoftmax over class dimension
+        return minitorch.logsoftmax(logits, 1)
+
 
 
 def make_mnist(start, stop):
