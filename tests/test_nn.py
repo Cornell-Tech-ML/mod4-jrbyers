@@ -32,7 +32,46 @@ def test_avg(t: Tensor) -> None:
 @given(tensors(shape=(2, 3, 4)))
 def test_max(t: Tensor) -> None:
     # TODO: Implement for Task 4.4.
-    raise NotImplementedError("Need to implement for Task 4.4")
+    # raise NotImplementedError("Need to implement for Task 4.4")
+    # Test max across first dimension (0)
+    out = t.max(0)
+    assert out.shape == (1, 3, 4)
+    for i in range(3):
+        for j in range(4):
+            assert_close(out[0, i, j], max([t[k, i, j] for k in range(2)]))
+
+    # Test max across middle dimension (1)
+    out = t.max(1)
+    assert out.shape == (2, 1, 4)
+    for i in range(2):
+        for j in range(4):
+            assert_close(out[i, 0, j], max([t[i, k, j] for k in range(3)]))
+
+    # Test max across last dimension (2)
+    out = t.max(2)
+    assert out.shape == (2, 3, 1)
+    for i in range(2):
+        for j in range(3):
+            assert_close(out[i, j, 0], max([t[i, j, k] for k in range(4)]))
+
+    # Test backward pass manually
+    t.requires_grad_(True)
+    out = t.max(1)
+    d = t.zeros((2, 1, 4)) + 1
+    out.backward(d)
+
+    # Check if grad exists
+    assert t.grad is not None, "Gradient should not be None"
+
+    for i in range(2):  # batch
+        for j in range(4):  # output dimension
+            max_val = float(max([t[i, k, j] for k in range(3)]))  # Convert to float
+            for k in range(3):  # reduced dimension
+                curr_val = float(t[i, k, j])  # Convert to float
+                if curr_val == max_val:
+                    assert_close(float(t.grad[i, k, j]), 1.0)
+                else:
+                    assert_close(float(t.grad[i, k, j]), 0.0)
 
 
 @pytest.mark.task4_4

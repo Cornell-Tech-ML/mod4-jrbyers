@@ -20,11 +20,17 @@ class Linear(minitorch.Module):
         self.bias = RParam(out_size)
         self.out_size = out_size
 
+    # using the forward pass from run_tensor
+    # the new one had malloc errors
     def forward(self, x):
+        # Ensure inputs are in the correct shape
+        assert x.shape[1] == self.weights.value.shape[0], "Input size must match weights size."
+
         batch, in_size = x.shape
         return (
-            x.view(batch, in_size) @ self.weights.value.view(in_size, self.out_size)
-        ).view(batch, self.out_size) + self.bias.value
+            self.weights.value.view(1, in_size, self.out_size)
+            * x.view(batch, in_size, 1)
+        ).sum(1).view(batch, self.out_size) + self.bias.value.view(self.out_size)
 
 
 class Conv1d(minitorch.Module):
@@ -35,7 +41,9 @@ class Conv1d(minitorch.Module):
 
     def forward(self, input):
         # TODO: Implement for Task 4.5.
-        raise NotImplementedError("Need to implement for Task 4.5")
+        #raise NotImplementedError("Need to implement for Task 4.5")
+        out = minitorch.conv1d(input, self.weights.value) + self.bias.value
+        return out
 
 
 class CNNSentimentKim(minitorch.Module):
@@ -62,14 +70,50 @@ class CNNSentimentKim(minitorch.Module):
         super().__init__()
         self.feature_map_size = feature_map_size
         # TODO: Implement for Task 4.5.
-        raise NotImplementedError("Need to implement for Task 4.5")
+        #raise NotImplementedError("Need to implement for Task 4.5")
+        # Create parallel convolutional layers for each filter size
+        self.conv1 = Conv1d(embedding_size, feature_map_size, filter_sizes[0])
+        self.conv2 = Conv1d(embedding_size, feature_map_size, filter_sizes[1])
+        self.conv3 = Conv1d(embedding_size, feature_map_size, filter_sizes[2])
+
+        self.linear = Linear(feature_map_size, 1)
+        self.dropout = 0.25
+
 
     def forward(self, embeddings):
         """
         embeddings tensor: [batch x sentence length x embedding dim]
         """
         # TODO: Implement for Task 4.5.
-        raise NotImplementedError("Need to implement for Task 4.5")
+        #raise NotImplementedError("Need to implement for Task 4.5")
+        batch, sent_len, emb_dim = embeddings.shape
+        x = embeddings.permute(0, 2, 1)  # Change to shape: [batch_size, embedding_dim, sentence_length]
+
+
+        conv_out1 = self.conv1(x)
+        conv_out1 = conv_out1.relu()
+        pooled1 = conv_out1.max(2)
+
+        conv_out2 = self.conv2(x)
+        conv_out2 = conv_out2.relu()
+        pooled2 = conv_out2.max(2)
+
+        conv_out3 = self.conv3(x)
+        conv_out3 = conv_out3.relu()
+        pooled3 = conv_out3.max(2)
+
+
+        combined = pooled1 + pooled2 + pooled3
+        combined = combined.view(combined.shape[0], 100)
+
+
+        out = self.linear(combined)
+        #out = out.relu()  # Ed post 462 says not to include relu after linear layer
+        # Apply dropout during training, ignore during evaluation
+        out = minitorch.dropout(out, self.dropout, ignore=not self.training)
+        out = out.sigmoid().view(embeddings.shape[0])
+        return out
+
 
 
 # Evaluation helper methods
