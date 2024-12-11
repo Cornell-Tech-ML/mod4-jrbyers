@@ -54,6 +54,23 @@ def test_max(t: Tensor) -> None:
         for j in range(3):
             assert_close(out[i, j, 0], max([t[i, j, k] for k in range(4)]))
 
+    # Test backward pass manually
+    t.requires_grad_(True)
+    out = t.max(1)
+    d = t.zeros((2, 1, 4)) + 1
+    out.backward(d)
+
+    # The gradient should be 1.0 at positions where the max occurred
+    # and 0.0 elsewhere
+    for i in range(2):  # batch
+        for j in range(4):  # output dimension
+            max_val = max([t[i, k, j] for k in range(3)])
+            for k in range(3):  # reduced dimension
+                if t[i, k, j].item() == max_val:
+                    assert_close(t.grad[i, k, j].item(), 1.0)
+                else:
+                    assert_close(t.grad[i, k, j].item(), 0.0)
+
 
 @pytest.mark.task4_4
 @given(tensors(shape=(1, 1, 4, 4)))

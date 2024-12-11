@@ -81,10 +81,6 @@ class Network(minitorch.Module):
         # Second convolutional layer: 4 input channels -> 8 output channels
         self.conv2 = Conv2d(4, 8, 3, 3)  # 3x3 kernel
 
-        # Linear layers
-        # Size calculation:
-        # Input: 28x28 -> Conv1: 26x26 -> Conv2: 24x24 -> Pool: 6x6
-        # After flattening: 8 * 6 * 6 = 288
         self.linear1 = Linear(392, 64)
         self.linear2 = Linear(64, 10)  # 10 classes for MNIST
 
@@ -114,8 +110,9 @@ class Network(minitorch.Module):
         # 5. First linear layer + ReLU + Dropout
         hidden = self.linear1(flattened)
         hidden = hidden.relu()
-        # Apply dropout during training (multiply by 1-dropout to scale)
-        hidden = hidden * (1.0 - self.dropout)
+
+
+        hidden = minitorch.dropout(hidden, self.dropout, ignore=not self.training)
 
         # 6. Second linear layer
         logits = self.linear2(hidden)
@@ -158,8 +155,11 @@ class ImageTrain:
         n_training_samples = len(X_train)
         optim = minitorch.SGD(self.model.parameters(), learning_rate)
         losses = []
+        current_epoch = 0
+
         for epoch in range(1, max_epochs + 1):
             total_loss = 0.0
+            current_epoch += 1
 
             model.train()
             for batch_num, example_num in enumerate(
@@ -213,7 +213,7 @@ class ImageTrain:
                                     m = out[i, j]
                             if y[i, ind] == 1.0:
                                 correct += 1
-                    log_fn(epoch, total_loss, correct, BATCH, losses, model)
+                    log_fn(current_epoch, total_loss, correct, BATCH, losses, model)
 
                     total_loss = 0.0
                     model.train()
@@ -221,4 +221,4 @@ class ImageTrain:
 
 if __name__ == "__main__":
     data_train, data_val = (make_mnist(0, 5000), make_mnist(10000, 10500))
-    ImageTrain().train(data_train, data_val, learning_rate=0.01)
+    ImageTrain().train(data_train, data_val, learning_rate=0.005)

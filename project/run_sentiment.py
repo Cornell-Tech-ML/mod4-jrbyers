@@ -77,6 +77,7 @@ class CNNSentimentKim(minitorch.Module):
         self.conv3 = Conv1d(embedding_size, feature_map_size, filter_sizes[2])
 
         self.linear = Linear(feature_map_size, 1)
+        self.dropout = 0.25
 
 
     def forward(self, embeddings):
@@ -107,7 +108,9 @@ class CNNSentimentKim(minitorch.Module):
 
 
         out = self.linear(combined)
-        #out = out.relu()
+        #out = out.relu()  # Ed post 462 says not to include relu after linear layer
+        # Apply dropout during training, ignore during evaluation
+        out = minitorch.dropout(out, self.dropout, ignore=not self.training)
         out = out.sigmoid().view(embeddings.shape[0])
         return out
 

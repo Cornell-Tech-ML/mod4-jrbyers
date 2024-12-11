@@ -1,5 +1,15 @@
 # MiniTorch Module 4
 
+
+In the files sentiment.txt and mnist.txt I have included my logs for training on both datasets.
+
+In the sentiment dataset I achieved:
+72% validation accuracy with a loss of 14.169868326326727
+
+In the MNist dataset I achieved:
+16/16 valid accuracy with a loss of 0.9786137148258257
+
+
 <img src="https://minitorch.github.io/minitorch.svg" width="50%">
 
 * Docs: https://minitorch.github.io/
